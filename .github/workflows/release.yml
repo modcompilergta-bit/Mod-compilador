@@ -13,11 +13,6 @@ on:
       - master
   workflow_dispatch:
     inputs:
-      create_release:
-        description: 'Crear GitHub Release automaticamente'
-        required: false
-        type: boolean
-        default: true
       release_tag:
         description: 'Etiqueta de la versión (ej. v1.0.0)'
         required: false
@@ -29,7 +24,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & Release
+    name: Compiler Studio - Build & Release
     runs-on: ubuntu-latest
 
     steps:
@@ -104,33 +99,28 @@ jobs:
       - name: Build Release App Bundle (AAB)
         run: ./gradlew bundleRelease --no-daemon
 
-      - name: Prepare Release Artifacts
+      - name: Prepare Release Artifacts (Compiler Studio)
         run: |
           mkdir -p release-output
           APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           if [ -n "$APK_FILE" ]; then
-            cp "$APK_FILE" release-output/CleoCompilerStudio-release.apk
-            echo "Found APK: $APK_FILE"
+            cp "$APK_FILE" release-output/CompilerStudio.apk
+            echo "Copied APK to release-output/CompilerStudio.apk"
           fi
           AAB_FILE=$(find app/build/outputs/bundle/release -name "*.aab" | head -n 1)
           if [ -n "$AAB_FILE" ]; then
-            cp "$AAB_FILE" release-output/CleoCompilerStudio-release.aab
-            echo "Found AAB: $AAB_FILE"
+            cp "$AAB_FILE" release-output/CompilerStudio.aab
+            echo "Copied AAB to release-output/CompilerStudio.aab"
           fi
 
-      - name: Upload Release APK as Artifact
+      - name: Upload Release Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: CleoCompilerStudio-Release-APK
-          path: release-output/CleoCompilerStudio-release.apk
+          name: CompilerStudio-Release
+          path: |
+            release-output/CompilerStudio.apk
+            release-output/CompilerStudio.aab
           if-no-files-found: error
-
-      - name: Upload Release AAB as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: CleoCompilerStudio-Release-AAB
-          path: release-output/CleoCompilerStudio-release.aab
-          if-no-files-found: warn
 
       - name: Determine Release Tag
         id: release-tag
@@ -140,18 +130,33 @@ jobs:
           elif [ -n "${{ github.event.inputs.release_tag }}" ]; then
             TAG_NAME="${{ github.event.inputs.release_tag }}"
           else
-            TAG_NAME="v1.0.0-$(date +'%Y%m%d%H%M%S')"
+            TAG_NAME="v1.0.${{ github.run_number }}"
           fi
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
+      - name: Publish to GitHub Releases
+        if: github.event_name != 'pull_request'
         run: |
           TAG="${{ steps.release-tag.outputs.tag_name }}"
-          gh release create "$TAG" \
-            release-output/CleoCompilerStudio-release.apk \
-            release-output/CleoCompilerStudio-release.aab \
-            --title "Release $TAG" \
-            --generate-notes || gh release upload "$TAG" release-output/CleoCompilerStudio-release.apk release-output/CleoCompilerStudio-release.aab --clobber
+          TITLE="Compiler Studio - $TAG"
+          echo "Publishing release $TAG..."
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG exists, updating assets..."
+            gh release upload "$TAG" \
+              release-output/CompilerStudio.apk \
+              release-output/CompilerStudio.aab \
+              --clobber
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" \
+              release-output/CompilerStudio.apk \
+              release-output/CompilerStudio.aab \
+              --title "$TITLE" \
+              --notes "### Compiler Studio para Android ($TAG)
+              
+              Descarga directa de los archivos de instalación:
+              - **CompilerStudio.apk**: Archivo APK listo para instalar en cualquier dispositivo Android.
+              - **CompilerStudio.aab**: Paquete Android App Bundle oficial para Google Play Store."
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
