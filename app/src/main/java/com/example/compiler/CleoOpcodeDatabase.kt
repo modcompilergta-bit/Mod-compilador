@@ -357,7 +357,29 @@ object CleoOpcodeDatabase {
   fun findByHex(hex: String): OpcodeDef? {
     val clean = hex.trim().removePrefix("0x").removeSuffix(":").uppercase()
     val intVal = clean.toIntOrNull(16) ?: return null
-    return officialOpcodes[intVal] ?: customOpcodes[intVal]
+
+    if (intVal == 0x0000) {
+      return officialOpcodes[0] ?: OpcodeDef(0x0000, "0000", "nop", "No operation (NOP)", 0, 0, emptyList(), "0000: NOP")
+    }
+
+    officialOpcodes[intVal]?.let { return it }
+    customOpcodes[intVal]?.let { return it }
+
+    // Si es una condición negada (0x8000 o superior, ej. 80DF -> condición invertida de 00DF)
+    if (intVal >= 0x8000) {
+      val baseInt = intVal and 0x7FFF
+      val baseDef = officialOpcodes[baseInt] ?: customOpcodes[baseInt]
+      if (baseDef != null) {
+        return baseDef.copy(
+          opcode = intVal,
+          hexString = "%04X".format(intVal),
+          commandName = "not_${baseDef.commandName}",
+          description = "Condición negada: ${baseDef.description}"
+        )
+      }
+    }
+
+    return null
   }
 
   fun findByName(name: String): OpcodeDef? {
@@ -374,6 +396,7 @@ object CleoOpcodeDatabase {
 
   private fun loadEmbeddedOpcodes() {
     val defaultList = listOf(
+      OpcodeDef(0x0000, "0000", "nop", "No operation (NOP)", 0, 0, emptyList(), "0000: NOP"),
       OpcodeDef(0x0001, "0001", "wait", "Pausa la ejecución del script por X milisegundos", 1, 1, listOf(ParamType.INTEGER), "0001: wait 0 ms"),
       OpcodeDef(0x0002, "0002", "jump", "Salto incondicional a una etiqueta", 1, 1, listOf(ParamType.LABEL), "0002: jump @MAIN_LOOP"),
       OpcodeDef(0x004D, "004D", "jump_if_false", "Salto condicional si la última condición fue falsa (jf)", 1, 1, listOf(ParamType.LABEL), "004D: jump_if_false @END"),
@@ -397,6 +420,7 @@ object CleoOpcodeDatabase {
       OpcodeDef(0x00C0, "00C0", "set_time_of_day", "Establece la hora y minuto del mundo de juego", 2, 2, emptyList(), "00C0: set_time_of_day 12 0"),
       OpcodeDef(0x00C1, "00C1", "get_time_of_day", "Obtiene la hora y minuto actuales del juego", 2, 2, emptyList(), "00C1: get_time_of_day 0@ 1@"),
       OpcodeDef(0x00D6, "00D6", "if", "Inicia bloque condicional con N condiciones", 1, 1, listOf(ParamType.INTEGER), "00D6: if 0"),
+      OpcodeDef(0x00DF, "00DF", "is_char_in_any_car", "Comprueba si el personaje está dentro de algún coche", 1, 1, emptyList(), "00DF: is_char_in_any_car \$PLAYER_ACTOR"),
       OpcodeDef(0x00E1, "00E1", "is_key_pressed", "Comprueba si se presiona una tecla o botón", 2, 2, emptyList(), "00E1: key_pressed 0 15"),
       OpcodeDef(0x0109, "0109", "player_add_money", "Añade dinero al jugador", 2, 2, listOf(ParamType.VARIABLE, ParamType.INTEGER), "0109: player \$PLAYER_CHAR add_money 500"),
       OpcodeDef(0x010A, "010A", "player_remove_money", "Resta dinero al jugador", 2, 2, emptyList(), "010A: player \$PLAYER_CHAR remove_money 200"),

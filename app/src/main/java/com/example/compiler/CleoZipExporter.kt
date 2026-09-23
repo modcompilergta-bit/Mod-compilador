@@ -19,13 +19,14 @@ data class GeneratedZipResult(
   val fileName: String,
   val sizeBytes: Long,
   val scriptFormat: String,
-  val scriptEntryName: String
+  val scriptEntryName: String,
+  val scriptFile: File? = null
 )
 
 object CleoZipExporter {
 
   /**
-   * Crea un archivo ZIP real en el caché que contiene el script compilado y el código fuente.
+   * Crea un archivo ZIP y un archivo binario directo (.csa/.cs) en el caché.
    */
   fun createZipPackage(
     context: Context,
@@ -38,6 +39,12 @@ object CleoZipExporter {
     val scriptFileName = "script.$cleanExt"
 
     val cacheDir = context.cacheDir
+
+    // Archivo binario directo del script (.csa o .cs)
+    val directScriptFile = File(cacheDir, scriptFileName)
+    directScriptFile.writeBytes(bytecode)
+
+    // Archivo ZIP empaquetado
     val zipFile = File(cacheDir, zipName)
     if (zipFile.exists()) {
       zipFile.delete()
@@ -50,7 +57,7 @@ object CleoZipExporter {
       zipOut.write(bytecode)
       zipOut.closeEntry()
 
-      // 2. Archivo de código fuente fuente original (.txt)
+      // 2. Archivo de código fuente original (.txt)
       val sourceEntry = ZipEntry("source.txt")
       zipOut.putNextEntry(sourceEntry)
       zipOut.write(sourceCode.toByteArray(Charsets.UTF_8))
@@ -62,8 +69,37 @@ object CleoZipExporter {
       fileName = zipName,
       sizeBytes = zipFile.length(),
       scriptFormat = cleanExt.uppercase(),
-      scriptEntryName = scriptFileName
+      scriptEntryName = scriptFileName,
+      scriptFile = directScriptFile
     )
+  }
+
+  /**
+   * Guarda el archivo directo del script (.csa o .cs) en Downloads.
+   */
+  fun saveScriptToDownloads(context: Context, scriptFile: File, displayName: String): Uri? {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      val values = ContentValues().apply {
+        put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+        put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
+        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+      }
+      val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+      if (uri != null) {
+        context.contentResolver.openOutputStream(uri)?.use { out ->
+          scriptFile.inputStream().use { input ->
+            input.copyTo(out)
+          }
+        }
+      }
+      uri
+    } else {
+      @Suppress("DEPRECATION")
+      val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+      val destFile = File(downloadsDir, displayName)
+      scriptFile.copyTo(destFile, overwrite = true)
+      Uri.fromFile(destFile)
+    }
   }
 
   /**
@@ -105,6 +141,21 @@ object CleoZipExporter {
       type = "application/zip"
       putExtra(Intent.EXTRA_STREAM, contentUri)
       putExtra(Intent.EXTRA_SUBJECT, zipFile.name)
+      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+  }
+
+  /**
+   * Genera un Intent para compartir el archivo directo (.csa o .cs).
+   */
+  fun createShareScriptIntent(context: Context, scriptFile: File): Intent {
+    val authority = "${context.packageName}.fileprovider"
+    val contentUri = FileProvider.getUriForFile(context, authority, scriptFile)
+
+    return Intent(Intent.ACTION_SEND).apply {
+      type = "application/octet-stream"
+      putExtra(Intent.EXTRA_STREAM, contentUri)
+      putExtra(Intent.EXTRA_SUBJECT, scriptFile.name)
       addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
   }

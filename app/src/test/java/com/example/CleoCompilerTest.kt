@@ -190,4 +190,62 @@ class CleoCompilerTest {
     assertTrue("Debe generar bytecode válido", success.bytecode.isNotEmpty())
     assertTrue("Debe compilar al menos 15 opcodes", success.opcodesCompiled >= 15)
   }
+
+  @Test
+  fun `jump to label generates negative relative offset for CLEO`() {
+    val script = """
+      :LOOP
+      0001: wait 0 ms
+      0002: jump @LOOP
+    """.trimIndent()
+
+    val result = CleoCompiler.compile(script)
+    assertTrue("Debe compilar", result is CompilationResult.Success)
+    val success = result as CompilationResult.Success
+    // Offset de :LOOP es 0.
+    // 0001 wait 0 ms: 01 00 (opcode) 04 00 (Int8 0) = 4 bytes
+    // 0002 jump @LOOP: 02 00 (opcode) 01 (Int32) 00 00 00 00 (-0 = 0)
+    assertEquals("01 00 04 00 02 00 01 00 00 00 00", success.hexDump)
+  }
+
+  @Test
+  fun `undefined label returns syntax error`() {
+    val script = """
+      0001: wait 0 ms
+      0002: jump @NOT_EXIST
+    """.trimIndent()
+
+    val result = CleoCompiler.compile(script)
+    assertTrue("Debe fallar", result is CompilationResult.Failure)
+    val failure = result as CompilationResult.Failure
+    assertEquals(CompilerErrorType.SYNTAX_ERROR, failure.error.type)
+  }
+
+  @Test
+  fun `missing end_thread automatically protected to avoid game crash`() {
+    val script = """
+      0001: wait 250 ms
+    """.trimIndent()
+
+    val result = CleoCompiler.compile(script)
+    assertTrue("Debe compilar", result is CompilationResult.Success)
+    val success = result as CompilationResult.Success
+    // 0001 wait 250: 01 00 05 FA 00 (250 cabe en Int16: 0x05 + 0x00FA) + terminador seguro 4E 00
+    assertTrue("Debe terminar en 4E 00 para proteger el juego", success.hexDump.endsWith("4E 00"))
+  }
+
+  @Test
+  fun `negated opcode with NOT prefix sets bit 15`() {
+    val script = """
+      0001: wait 0 ms
+      NOT 00DF: is_char_in_any_car ${'$'}PLAYER_ACTOR
+      004E: end_thread
+    """.trimIndent()
+
+    val result = CleoCompiler.compile(script)
+    assertTrue("Debe compilar condición negada", result is CompilationResult.Success)
+    val success = result as CompilationResult.Success
+    // 00DF or 0x8000 = 0x80DF -> Little endian: DF 80
+    assertTrue("Debe contener DF 80", success.hexDump.contains("DF 80"))
+  }
 }

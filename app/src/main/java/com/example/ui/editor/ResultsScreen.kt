@@ -104,9 +104,16 @@ fun ResultsScreen(
             zipFile = zipResult.zipFile,
             displayName = zipResult.fileName
           )
+          if (zipResult.scriptFile != null) {
+            CleoZipExporter.saveScriptToDownloads(
+              context = context,
+              scriptFile = zipResult.scriptFile,
+              displayName = zipResult.scriptEntryName
+            )
+          }
           if (uri != null) {
             isSavedToDownloads = true
-            Toast.makeText(context, strings.toastSavedToDownload, Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "${strings.toastSavedToDownload}: ${zipResult.scriptEntryName}", Toast.LENGTH_LONG).show()
           } else {
             Toast.makeText(context, strings.toastErrorSaving, Toast.LENGTH_SHORT).show()
           }
