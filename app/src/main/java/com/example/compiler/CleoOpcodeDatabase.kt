@@ -350,25 +350,25 @@ object CleoOpcodeDatabase {
   }
 
   /**
-   * Búsqueda prioritaria:
-   * 1. Busca primero en los opcodes oficiales.
-   * 2. Si no lo encuentra, busca en los personalizados del usuario.
+   * Búsqueda de opcodes:
+   * 1. Prioriza opcodes personalizados del usuario (permite redefinir/ajustar parámetros).
+   * 2. Si no lo encuentra, busca en los oficiales.
    */
   fun findByHex(hex: String): OpcodeDef? {
     val clean = hex.trim().removePrefix("0x").removeSuffix(":").uppercase()
     val intVal = clean.toIntOrNull(16) ?: return null
 
     if (intVal == 0x0000) {
-      return officialOpcodes[0] ?: OpcodeDef(0x0000, "0000", "nop", "No operation (NOP)", 0, 0, emptyList(), "0000: NOP")
+      return customOpcodes[0] ?: officialOpcodes[0] ?: OpcodeDef(0x0000, "0000", "nop", "No operation (NOP)", 0, 0, emptyList(), "0000: NOP")
     }
 
-    officialOpcodes[intVal]?.let { return it }
     customOpcodes[intVal]?.let { return it }
+    officialOpcodes[intVal]?.let { return it }
 
     // Si es una condición negada (0x8000 o superior, ej. 80DF -> condición invertida de 00DF)
     if (intVal >= 0x8000) {
       val baseInt = intVal and 0x7FFF
-      val baseDef = officialOpcodes[baseInt] ?: customOpcodes[baseInt]
+      val baseDef = customOpcodes[baseInt] ?: officialOpcodes[baseInt]
       if (baseDef != null) {
         return baseDef.copy(
           opcode = intVal,
@@ -384,8 +384,8 @@ object CleoOpcodeDatabase {
 
   fun findByName(name: String): OpcodeDef? {
     val clean = name.trim().lowercase()
-    return officialOpcodes.values.firstOrNull { it.commandName.lowercase() == clean }
-      ?: customOpcodes.values.firstOrNull { it.commandName.lowercase() == clean }
+    return customOpcodes.values.firstOrNull { it.commandName.lowercase() == clean }
+      ?: officialOpcodes.values.firstOrNull { it.commandName.lowercase() == clean }
   }
 
   fun isSupported(opcodeInt: Int): Boolean =
@@ -399,10 +399,64 @@ object CleoOpcodeDatabase {
       OpcodeDef(0x0000, "0000", "nop", "No operation (NOP)", 0, 0, emptyList(), "0000: NOP"),
       OpcodeDef(0x0001, "0001", "wait", "Pausa la ejecución del script por X milisegundos", 1, 1, listOf(ParamType.INTEGER), "0001: wait 0 ms"),
       OpcodeDef(0x0002, "0002", "jump", "Salto incondicional a una etiqueta", 1, 1, listOf(ParamType.LABEL), "0002: jump @MAIN_LOOP"),
+      OpcodeDef(0x0004, "0004", "set_int_var", "Asigna un valor entero a una variable global", 2, 2, emptyList(), "0004: \$VAR = 10"),
+      OpcodeDef(0x0005, "0005", "set_float_var", "Asigna un valor flotante a una variable global", 2, 2, emptyList(), "0005: \$VAR = 10.0"),
+      OpcodeDef(0x0006, "0006", "set_local_var_int", "Asigna un valor entero a una variable local", 2, 2, emptyList(), "0006: 0@ = 10"),
+      OpcodeDef(0x0007, "0007", "set_local_var_float", "Asigna un valor flotante a una variable local", 2, 2, emptyList(), "0007: 0@ = 10.0"),
+      OpcodeDef(0x0008, "0008", "add_int_to_var", "Suma un entero a una variable", 2, 2, emptyList(), "0008: \$VAR += 1"),
+      OpcodeDef(0x0009, "0009", "add_float_to_var", "Suma un flotante a una variable", 2, 2, emptyList(), "0009: \$VAR += 1.0"),
+      OpcodeDef(0x000A, "000A", "add_int_to_local_var", "Suma un entero a una variable local", 2, 2, emptyList(), "000A: 0@ += 1"),
+      OpcodeDef(0x000B, "000B", "add_float_to_local_var", "Suma un flotante a una variable local", 2, 2, emptyList(), "000B: 0@ += 1.0"),
+      OpcodeDef(0x000C, "000C", "sub_int_from_var", "Resta un entero a una variable", 2, 2, emptyList(), "000C: \$VAR -= 1"),
+      OpcodeDef(0x000D, "000D", "sub_float_from_var", "Resta un flotante a una variable", 2, 2, emptyList(), "000D: \$VAR -= 1.0"),
+      OpcodeDef(0x000E, "000E", "sub_int_from_local_var", "Resta un entero a una variable local", 2, 2, emptyList(), "000E: 0@ -= 1"),
+      OpcodeDef(0x000F, "000F", "sub_float_from_local_var", "Resta un flotante a una variable local", 2, 2, emptyList(), "000F: 0@ -= 1.0"),
+      OpcodeDef(0x0010, "0010", "mult_int_var", "Multiplica una variable por un entero", 2, 2, emptyList(), "0010: \$VAR *= 2"),
+      OpcodeDef(0x0011, "0011", "mult_float_var", "Multiplica una variable por un flotante", 2, 2, emptyList(), "0011: \$VAR *= 2.0"),
+      OpcodeDef(0x0012, "0012", "mult_int_local_var", "Multiplica una variable local por un entero", 2, 2, emptyList(), "0012: 0@ *= 2"),
+      OpcodeDef(0x0013, "0013", "mult_float_local_var", "Multiplica una variable local por un flotante", 2, 2, emptyList(), "0013: 0@ *= 2.0"),
+      OpcodeDef(0x0014, "0014", "div_int_var", "Divide una variable entre un entero", 2, 2, emptyList(), "0014: \$VAR /= 2"),
+      OpcodeDef(0x0015, "0015", "div_float_var", "Divide una variable entre un flotante", 2, 2, emptyList(), "0015: \$VAR /= 2.0"),
+      OpcodeDef(0x0016, "0016", "div_int_local_var", "Divide una variable local entre un entero", 2, 2, emptyList(), "0016: 0@ /= 2"),
+      OpcodeDef(0x0017, "0017", "div_float_local_var", "Divide una variable local entre un float", 2, 2, emptyList(), "0017: 0@ /= 2.0"),
+      OpcodeDef(0x0018, "0018", "is_int_var_greater_than_var", "Comprueba si variable 1 > variable 2", 2, 2, emptyList(), "0018: 0@ > 1@"),
+      OpcodeDef(0x0019, "0019", "is_int_var_greater_than_int", "Comprueba si variable entera > valor", 2, 2, emptyList(), "0019: 0@ > 10"),
+      OpcodeDef(0x001A, "001A", "is_int_var_greater_or_equal_var", "Comprueba si variable 1 >= variable 2", 2, 2, emptyList(), "001A: 0@ >= 1@"),
+      OpcodeDef(0x001B, "001B", "is_int_var_greater_than_int_2", "Comprueba si valor > variable", 2, 2, emptyList(), "001B: 10 > 0@"),
+      OpcodeDef(0x0020, "0020", "is_float_var_greater_than_var", "Comprueba si float 1 > float 2", 2, 2, emptyList(), "0020: 0@ > 1@"),
+      OpcodeDef(0x0021, "0021", "is_float_var_greater_than_float", "Comprueba si float > número", 2, 2, emptyList(), "0021: 0@ > 5.0"),
+      OpcodeDef(0x0028, "0028", "is_int_var_less_than_var", "Comprueba si variable 1 < variable 2", 2, 2, emptyList(), "0028: 0@ < 1@"),
+      OpcodeDef(0x0029, "0029", "is_int_var_less_than_int", "Comprueba si variable entera < valor", 2, 2, emptyList(), "0029: 0@ < 10"),
+      OpcodeDef(0x002A, "002A", "is_float_var_less_than_var", "Comprueba si float 1 < float 2", 2, 2, emptyList(), "002A: 0@ < 1@"),
+      OpcodeDef(0x002B, "002B", "is_float_var_less_than_float", "Comprueba si float < número", 2, 2, emptyList(), "002B: 0@ < 10.0"),
+      OpcodeDef(0x002C, "002C", "is_int_var_less_or_equal_var", "Comprueba si variable 1 <= variable 2", 2, 2, emptyList(), "002C: 0@ <= 1@"),
+      OpcodeDef(0x002D, "002D", "is_int_var_less_or_equal_int", "Comprueba si variable <= entero", 2, 2, emptyList(), "002D: 0@ <= 10"),
+      OpcodeDef(0x0038, "0038", "is_int_var_equal_to_int", "Comprueba si variable entera == entero", 2, 2, emptyList(), "0038: 0@ == 10"),
+      OpcodeDef(0x0039, "0039", "is_int_var_greater_than_int", "Comprueba si variable entera > entero", 2, 2, emptyList(), "0039: 0@ > 10"),
+      OpcodeDef(0x003A, "003A", "is_int_var_greater_or_equal", "Comprueba si variable entera >= entero", 2, 2, emptyList(), "003A: 0@ >= 10"),
+      OpcodeDef(0x003B, "003B", "is_int_var_less_or_equal", "Comprueba si variable entera <= entero", 2, 2, emptyList(), "003B: 0@ <= 10"),
+      OpcodeDef(0x003C, "003C", "is_int_var_not_equal_to_int", "Comprueba si variable entera != entero", 2, 2, emptyList(), "003C: 0@ != 10"),
+      OpcodeDef(0x0042, "0042", "is_float_var_greater_than_float", "Comprueba si float > número", 2, 2, emptyList(), "0042: 0@ > 10.0"),
+      OpcodeDef(0x0043, "0043", "is_float_var_less_than_float", "Comprueba si float < número", 2, 2, emptyList(), "0043: 0@ < 10.0"),
       OpcodeDef(0x004D, "004D", "jump_if_false", "Salto condicional si la última condición fue falsa (jf)", 1, 1, listOf(ParamType.LABEL), "004D: jump_if_false @END"),
       OpcodeDef(0x004E, "004E", "end_thread", "Termina el hilo del script actual", 0, 0, emptyList(), "004E: end_thread"),
       OpcodeDef(0x0050, "0050", "gosub", "Llama a una subrutina", 1, 1, listOf(ParamType.LABEL), "0050: gosub @SUB_ROUTINE"),
       OpcodeDef(0x0051, "0051", "return", "Regresa de una subrutina", 0, 0, emptyList(), "0051: return"),
+      OpcodeDef(0x0054, "0054", "set_game_timer", "Establece temporizador interno", 1, 1, emptyList(), "0054: set_game_timer 1000"),
+      OpcodeDef(0x0058, "0058", "add_int_var_to_var", "Suma el valor de una variable a otra", 2, 2, emptyList(), "0058: 0@ += 1@"),
+      OpcodeDef(0x0059, "0059", "add_float_var_to_var", "Suma variable float a otra variable", 2, 2, emptyList(), "0059: 0@ += 1@"),
+      OpcodeDef(0x0060, "0060", "sub_int_var_from_var", "Resta una variable de otra", 2, 2, emptyList(), "0060: 0@ -= 1@"),
+      OpcodeDef(0x0061, "0061", "sub_float_var_from_var", "Resta variable float de otra variable", 2, 2, emptyList(), "0061: 0@ -= 1@"),
+      OpcodeDef(0x0062, "0062", "mult_int_var_by_var", "Multiplica variable entera por otra", 2, 2, emptyList(), "0062: 0@ *= 1@"),
+      OpcodeDef(0x0063, "0063", "mult_float_var_by_var", "Multiplica variable float por otra", 2, 2, emptyList(), "0063: 0@ *= 1@"),
+      OpcodeDef(0x0064, "0064", "div_int_var_by_var", "Divide variable entera por otra", 2, 2, emptyList(), "0064: 0@ /= 1@"),
+      OpcodeDef(0x0065, "0065", "div_float_var_by_var", "Divide variable float por otra", 2, 2, emptyList(), "0065: 0@ /= 1@"),
+      OpcodeDef(0x0084, "0084", "set_var_to_var", "Asigna el valor de una variable a otra", 2, 2, emptyList(), "0084: 0@ = 1@"),
+      OpcodeDef(0x0085, "0085", "set_var_to_var_float", "Copia el valor de una variable float a otra", 2, 2, emptyList(), "0085: 0@ = 1@"),
+      OpcodeDef(0x0086, "0086", "add_var_to_var", "Suma variable a variable", 2, 2, emptyList(), "0086: 0@ += 1@"),
+      OpcodeDef(0x0087, "0087", "sub_var_from_var", "Resta variable de variable", 2, 2, emptyList(), "0087: 0@ -= 1@"),
+      OpcodeDef(0x0088, "0088", "mult_var_by_var", "Multiplica variable por variable", 2, 2, emptyList(), "0088: 0@ *= 1@"),
+      OpcodeDef(0x0089, "0089", "div_var_by_var", "Divide variable entre variable", 2, 2, emptyList(), "0089: 0@ /= 1@"),
       OpcodeDef(0x0053, "0053", "create_player", "Crea el objeto de jugador en coordenadas", 4, 4, emptyList(), "0053: create_player 0 2488.0 -1666.0 13.0"),
       OpcodeDef(0x009A, "009A", "create_actor", "Crea un personaje (ped/actor)", 5, 5, emptyList(), "009A: create_actor 4 105 0.0 0.0 0.0 to \$ACTOR"),
       OpcodeDef(0x009B, "009B", "destroy_actor", "Destruye un personaje creado", 1, 1, emptyList(), "009B: destroy_actor \$ACTOR"),

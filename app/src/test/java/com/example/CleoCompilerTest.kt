@@ -248,4 +248,44 @@ class CleoCompilerTest {
     // 00DF or 0x8000 = 0x80DF -> Little endian: DF 80
     assertTrue("Debe contener DF 80", success.hexDump.contains("DF 80"))
   }
+
+  @Test
+  fun `sanny builder high level syntax compiles arithmetic and comparisons`() {
+    val script = """
+      wait 0 ms
+      0@ = 10
+      0@ += 5
+      0@ -= 2
+      0@ *= 3
+      0@ /= 2
+      0@ > 10
+      0@ >= 10
+      0@ == 10
+      ${'$'}VAR = 100
+      ${'$'}VAR += 50
+      end_thread
+    """.trimIndent()
+
+    val result = CleoCompiler.compile(script)
+    assertTrue("Debe compilar sintaxis de Sanny Builder: $result", result is CompilationResult.Success)
+    val success = result as CompilationResult.Success
+    assertTrue("Debe contener al menos 12 instrucciones", success.opcodesCompiled >= 12)
+    // Comprobar que terminó en 4E 00
+    assertTrue("Debe contener end_thread", success.hexDump.endsWith("4E 00"))
+  }
+
+  @Test
+  fun `sanny builder high level flow jumps and labels compile correctly`() {
+    val script = """
+      :LOOP
+      wait 100 ms
+      0@ += 1
+      jump @LOOP
+    """.trimIndent()
+
+    val result = CleoCompiler.compile(script)
+    assertTrue("Debe compilar bucle con etiquetas", result is CompilationResult.Success)
+    val success = result as CompilationResult.Success
+    assertTrue("Debe generar bytecode no vacío", success.bytecode.isNotEmpty())
+  }
 }

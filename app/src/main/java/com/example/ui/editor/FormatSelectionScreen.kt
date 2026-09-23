@@ -31,7 +31,12 @@ import com.example.i18n.LocalAppStrings
 
 enum class CleoScriptFormat(val extension: String, val label: String, val subtitle: String) {
   CSA("csa", "CLEO SA (.csa)", "Script autónomo para GTA San Andreas Android"),
-  CS("cs", "CLEO Script (.cs)", "Script estándar de CLEO")
+  CSI("csi", "CLEO Invoked (.csi)", "Script de invocación táctil / animación CLEO Android");
+
+  companion object {
+    @JvmField
+    val CS = CSI
+  }
 }
 
 @Composable
@@ -92,13 +97,13 @@ fun FormatSelectionScreen(
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Opción 2: .cs
+      // Opción 2: .csi
       FormatOptionCard(
-        title = ".CS",
+        title = ".CSI",
         description = strings.csiTitle,
         subDescription = strings.csiDesc,
-        testTag = "format_option_cs",
-        onClick = { onFormatSelected(CleoScriptFormat.CS) }
+        testTag = "format_option_csi",
+        onClick = { onFormatSelected(CleoScriptFormat.CSI) }
       )
     }
   }

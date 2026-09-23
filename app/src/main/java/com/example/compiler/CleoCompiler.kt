@@ -149,24 +149,55 @@ object CleoCompiler {
         clean = clean.substring(4).trim()
       }
 
-      // Extraer el opcode inicial (esperado: 4 caracteres hex)
+      // Extraer el opcode inicial o deducir sintaxis inteligente de Sanny Builder
+      var opcodeHex: String? = null
+      var argumentsRest = ""
+
       val parts = clean.split(Regex("\\s+"), limit = 2)
       val firstToken = parts.getOrNull(0)?.trim() ?: ""
 
       val opcodeMatch = Regex("^([0-9A-Fa-f]{4}):?$").find(firstToken)
-      if (opcodeMatch == null) {
+      if (opcodeMatch != null) {
+        // Formato estándar con código hexadecimal: 0001: wait 0 ms
+        opcodeHex = opcodeMatch.groupValues[1].uppercase()
+        argumentsRest = if (parts.size > 1) parts[1].trim() else ""
+      } else {
+        // Inteligencia estilo Sanny Builder:
+        // 1. Expresión matemática / asignación / comparación (ej. $VAR = 10, 0@ += 1, 0@ > 5)
+        val sannyMathMatch = Regex("^(\\$?[A-Za-z0-9_@]+)\\s*(==|>=|<=|!=|<>|\\+=|-=|\\*=|/=|=(?!=)|>|<)\\s*(.+)$").find(clean)
+        if (sannyMathMatch != null) {
+          val left = sannyMathMatch.groupValues[1].trim()
+          val op = sannyMathMatch.groupValues[2].trim()
+          val right = sannyMathMatch.groupValues[3].trim()
+          val resolvedHex = resolveSannyMathOpcode(left, op, right)
+          if (resolvedHex != null) {
+            opcodeHex = resolvedHex
+            argumentsRest = "$left $right"
+          }
+        }
+
+        // 2. Comandos directos y palabras clave (ej. wait 0 ms, jump @LOOP, end_thread, create_player, etc.)
+        if (opcodeHex == null) {
+          val resolvedCmd = resolveSannyKeywordOrCommand(clean)
+          if (resolvedCmd != null) {
+            opcodeHex = resolvedCmd.first
+            argumentsRest = resolvedCmd.second
+          }
+        }
+      }
+
+      if (opcodeHex == null) {
         return CompilationResult.Failure(
           CompilationError(
             line = lineNumber,
             rawLine = rawLine,
             type = CompilerErrorType.INVALID_OPCODE_FORMAT,
-            message = "Formato de opcode inválido: '$firstToken'. Cada instrucción debe iniciar con un código hexadecimal de 4 dígitos (ejemplo: '0001:').",
-            suggestion = "Revisa que el opcode tenga 4 dígitos hexadecimales (ejemplo: 0001:, 004E:, 03A4:)."
+            message = "Instrucción no reconocida o formato de opcode inválido: '$firstToken'. Puedes usar formato hexadecimal (ej: '0001: wait 0 ms') o sintaxis Sanny Builder (ej: 'wait 0 ms', '0@ = 10', '\$VAR += 1', 'jump @LABEL', 'end_thread').",
+            suggestion = "Revisa la instrucción. Opcodes comunes: 0001 (wait), 004E (end_thread), 03A4 (name_thread), o expresiones como 0@ = 1."
           )
         )
       }
 
-      val opcodeHex = opcodeMatch.groupValues[1].uppercase()
       var opcodeInt = opcodeHex.toInt(16)
 
       // Si empieza con 8 (ej. 80DF), en SCM de GTA SA significa condición negada
@@ -191,7 +222,6 @@ object CleoCompiler {
         opcodeInt = opcodeInt or 0x8000
       }
 
-      val argumentsRest = if (parts.size > 1) parts[1].trim() else ""
       val parseResult = parseInstructionArguments(
         opcodeDef = opcodeDef,
         opcodeInt = opcodeInt,
@@ -619,5 +649,124 @@ object CleoCompiler {
     }
 
     return ParseResult.Success(params)
+  }
+
+  // =========================================================================
+  // SOPORTE DE INTELIGENCIA DE SANNY BUILDER (Sintaxis de alto nivel)
+  // Permite expresiones matemáticas ($VAR = 10, 0@ += 1), comparaciones (0@ > 10),
+  // y comandos directos (wait, jump, jf, end_thread, return, gosub) sin requerir
+  // escribir opcodes hexadecimales manualmente.
+  // =========================================================================
+
+  private fun isLocalVarToken(token: String): Boolean =
+    Regex("^\\d+@(v|s)?$", RegexOption.IGNORE_CASE).matches(token.trim())
+
+  private fun isGlobalVarToken(token: String): Boolean =
+    token.trim().startsWith("$")
+
+  private fun isFloatToken(token: String): Boolean {
+    val clean = token.trim().removeSuffix("f").removeSuffix("F")
+    return clean.contains(".") && clean.toFloatOrNull() != null
+  }
+
+  private fun resolveSannyMathOpcode(left: String, op: String, right: String): String? {
+    val leftIsLocal = isLocalVarToken(left)
+    val leftIsGlobal = isGlobalVarToken(left)
+    val rightIsVar = isLocalVarToken(right) || isGlobalVarToken(right)
+    val rightIsFloat = isFloatToken(right)
+
+    return when (op) {
+      "=" -> {
+        if (rightIsVar) if (rightIsFloat) "0085" else "0084"
+        else if (leftIsLocal) if (rightIsFloat) "0007" else "0006"
+        else if (leftIsGlobal) if (rightIsFloat) "0005" else "0004"
+        else "0006"
+      }
+      "+=" -> {
+        if (rightIsVar) if (rightIsFloat) "0059" else "0058"
+        else if (leftIsLocal) if (rightIsFloat) "000B" else "000A"
+        else if (leftIsGlobal) if (rightIsFloat) "0009" else "0008"
+        else "000A"
+      }
+      "-=" -> {
+        if (rightIsVar) if (rightIsFloat) "0061" else "0060"
+        else if (leftIsLocal) if (rightIsFloat) "000F" else "000E"
+        else if (leftIsGlobal) if (rightIsFloat) "000D" else "000C"
+        else "000E"
+      }
+      "*=" -> {
+        if (rightIsVar) if (rightIsFloat) "0063" else "0062"
+        else if (leftIsLocal) if (rightIsFloat) "0013" else "0012"
+        else if (leftIsGlobal) if (rightIsFloat) "0011" else "0010"
+        else "0012"
+      }
+      "/=" -> {
+        if (rightIsVar) if (rightIsFloat) "0065" else "0064"
+        else if (leftIsLocal) if (rightIsFloat) "0017" else "0016"
+        else if (leftIsGlobal) if (rightIsFloat) "0015" else "0014"
+        else "0016"
+      }
+      ">" -> {
+        if (rightIsVar) if (rightIsFloat) "0020" else "0018"
+        else if (rightIsFloat) "0021" else "0019"
+      }
+      ">=" -> {
+        if (rightIsVar) if (rightIsFloat) "0024" else "001A"
+        else if (rightIsFloat) "0025" else "003A"
+      }
+      "<" -> {
+        if (rightIsVar) if (rightIsFloat) "002A" else "0028"
+        else if (rightIsFloat) "002B" else "0029"
+      }
+      "<=" -> {
+        if (rightIsVar) if (rightIsFloat) "002E" else "002C"
+        else if (rightIsFloat) "002F" else "003B"
+      }
+      "==" -> "0038"
+      "!=", "<>" -> "003C"
+      else -> null
+    }
+  }
+
+  private fun resolveSannyKeywordOrCommand(cleanLine: String): Pair<String, String>? {
+    val low = cleanLine.lowercase()
+
+    // Palabras clave directas de Sanny Builder
+    if (low.startsWith("wait ") || low == "wait") {
+      val args = cleanLine.substring(4).trim().ifEmpty { "0" }
+      return Pair("0001", args)
+    }
+    if (low.startsWith("jump ") || low.startsWith("goto ")) {
+      val args = cleanLine.split(Regex("\\s+"), limit = 2).getOrNull(1)?.trim() ?: ""
+      return Pair("0002", args)
+    }
+    if (low.startsWith("jf ") || low.startsWith("jump_if_false ")) {
+      val args = cleanLine.split(Regex("\\s+"), limit = 2).getOrNull(1)?.trim() ?: ""
+      return Pair("004D", args)
+    }
+    if (low == "end_thread" || low == "terminate_this_custom_script" || low == "terminate_this_script") {
+      return Pair("004E", "")
+    }
+    if (low.startsWith("gosub ")) {
+      val args = cleanLine.split(Regex("\\s+"), limit = 2).getOrNull(1)?.trim() ?: ""
+      return Pair("0050", args)
+    }
+    if (low == "return") {
+      return Pair("0051", "")
+    }
+    if (low.startsWith("fade ") || low.startsWith("fade_screen ")) {
+      val args = cleanLine.split(Regex("\\s+"), limit = 2).getOrNull(1)?.trim() ?: ""
+      return Pair("016A", args)
+    }
+
+    // Comprobación por nombre de comando oficial/personalizado (ej. create_player, show_text_box, name_thread)
+    val firstWord = cleanLine.split(Regex("\\s+"), limit = 2)[0]
+    val cmdDef = CleoOpcodeDatabase.findByName(firstWord)
+    if (cmdDef != null) {
+      val rest = cleanLine.substring(firstWord.length).trim()
+      return Pair(cmdDef.hexString, rest)
+    }
+
+    return null
   }
 }
