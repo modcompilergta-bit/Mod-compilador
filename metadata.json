@@ -1,0 +1,6 @@
+{
+  "name": "Compiler Studio",
+  "description": "Compilador de scripts CLEO para GTA San Andreas Android",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

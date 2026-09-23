@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Compiler Studio</string>
+    <string name="btn_compile">Compilar</string>
+    <string name="editor_placeholder">Escribe tu código fuente aquí…</string>
+</resources>
