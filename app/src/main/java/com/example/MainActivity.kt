@@ -81,8 +81,7 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
-    CleoOpcodeDatabase.loadFromAssets(this)
-    CleoOpcodeDatabase.loadCustomFromStorage(this)
+    CleoOpcodeDatabase.initializeAndSyncDatabase(this)
     setContent {
       MyApplicationTheme {
         HomeScreen()
@@ -154,11 +153,13 @@ fun HomeScreen() {
   var generatedZip by remember { mutableStateOf<GeneratedZipResult?>(null) }
 
   // Control del botón atrás físico
-  BackHandler(enabled = showAppMenu || showOpcodeList) {
+  BackHandler(enabled = showAppMenu || showOpcodeList || currentScreen != AppScreenState.EDITOR) {
     if (showOpcodeList) {
       showOpcodeList = false
     } else if (showAppMenu) {
       showAppMenu = false
+    } else if (currentScreen != AppScreenState.EDITOR) {
+      currentScreen = AppScreenState.EDITOR
     }
   }
 

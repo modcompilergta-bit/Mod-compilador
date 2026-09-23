@@ -137,12 +137,6 @@ fun AppMenuScreen(
           },
           testTag = "menu_item_opcodes"
         )
-
-        HorizontalDivider(
-          thickness = 0.5.dp,
-          color = Color(0xFFF1F5F9),
-          modifier = Modifier.padding(horizontal = 16.dp)
-        )
       }
     }
   }

@@ -145,15 +145,81 @@ object CleoOpcodeDatabase {
   }
 
   /**
-   * Carga los opcodes personalizados guardados por el usuario en su archivo JSON propio.
+   * Sincroniza y garantiza la presencia de opcodes_database.json en Android/data
+   * de forma silenciosa en segundo plano sin interfaces innecesarias.
+   */
+  fun initializeAndSyncDatabase(context: Context): Int {
+    try {
+      val extDir = context.getExternalFilesDir(null)
+      val extFile = extDir?.let { File(it, "opcodes_database.json") }
+      val intFile = File(context.filesDir, "opcodes_database.json")
+
+      // 1. Extraer a Android/data si no existe
+      if (extFile != null && (!extFile.exists() || extFile.length() < 100)) {
+        try {
+          context.assets.open("opcodes_database.json").use { input ->
+            extFile.outputStream().use { output ->
+              input.copyTo(output)
+            }
+          }
+        } catch (_: Exception) {}
+      }
+
+      // 2. Extraer a almacenamiento interno como respaldo
+      if (!intFile.exists() || intFile.length() < 100) {
+        try {
+          if (extFile != null && extFile.exists() && extFile.length() > 100) {
+            extFile.copyTo(intFile, overwrite = true)
+          } else {
+            context.assets.open("opcodes_database.json").use { input ->
+              intFile.outputStream().use { output ->
+                input.copyTo(output)
+              }
+            }
+          }
+        } catch (_: Exception) {}
+      }
+
+      // 3. Cargar en memoria: primero desde Android/data si existe
+      var loaded = 0
+      if (extFile != null && extFile.exists() && extFile.length() > 100) {
+        try {
+          loaded = loadFromJsonString(extFile.readText(Charsets.UTF_8))
+        } catch (_: Exception) {}
+      }
+      if (loaded == 0 && intFile.exists() && intFile.length() > 100) {
+        try {
+          loaded = loadFromJsonString(intFile.readText(Charsets.UTF_8))
+        } catch (_: Exception) {}
+      }
+      if (loaded == 0) {
+        loaded = loadFromAssets(context)
+      }
+
+      loadCustomFromStorage(context)
+      return loaded
+    } catch (e: Exception) {
+      e.printStackTrace()
+      loadFromAssets(context)
+      loadCustomFromStorage(context)
+      return officialOpcodes.size
+    }
+  }
+
+  /**
+   * Carga los opcodes personalizados guardados por el usuario.
+   * Revisa primero Android/data y luego el almacenamiento interno.
    */
   fun loadCustomFromStorage(context: Context): Int {
     customOpcodes.clear()
-    val file = File(context.filesDir, "custom_opcodes.json")
-    if (!file.exists()) return 0
+    val extFile = context.getExternalFilesDir(null)?.let { File(it, "custom_opcodes.json") }
+    val intFile = File(context.filesDir, "custom_opcodes.json")
+    val fileToRead = if (extFile != null && extFile.exists() && extFile.length() > 5) extFile else intFile
+
+    if (!fileToRead.exists()) return 0
 
     return try {
-      val content = file.readText(Charsets.UTF_8)
+      val content = fileToRead.readText(Charsets.UTF_8)
       val array = JSONArray(content)
       for (i in 0 until array.length()) {
         val obj = array.getJSONObject(i)
@@ -189,7 +255,10 @@ object CleoOpcodeDatabase {
    * Obtiene el texto crudo del archivo custom_opcodes.json o una plantilla si está vacío.
    */
   fun getCustomOpcodesRawText(context: Context): String {
-    val file = File(context.filesDir, "custom_opcodes.json")
+    val extFile = context.getExternalFilesDir(null)?.let { File(it, "custom_opcodes.json") }
+    val intFile = File(context.filesDir, "custom_opcodes.json")
+    val file = if (extFile != null && extFile.exists() && extFile.length() > 5) extFile else intFile
+
     if (file.exists() && file.length() > 0) {
       return file.readText(Charsets.UTF_8)
     }
@@ -206,7 +275,7 @@ object CleoOpcodeDatabase {
 
   /**
    * Guarda y analiza los opcodes personalizados del usuario en JSON.
-   * Soporta tanto JSON estructurado como líneas de texto plano.
+   * Guarda en simultáneo tanto en Android/data como en almacenamiento interno.
    */
   fun saveAndExecuteCustomOpcodes(context: Context, rawInput: String): Pair<Boolean, String> {
     val trimmed = rawInput.trim()
@@ -257,9 +326,20 @@ object CleoOpcodeDatabase {
         return Pair(false, "No se encontraron opcodes válidos en el texto ingresado.")
       }
 
-      // Guardar en el archivo independiente custom_opcodes.json
+      val jsonString = finalJsonArray.toString(2)
+
+      // Guardar en almacenamiento interno
       val file = File(context.filesDir, "custom_opcodes.json")
-      file.writeText(finalJsonArray.toString(2), Charsets.UTF_8)
+      file.writeText(jsonString, Charsets.UTF_8)
+
+      // Guardar también en Android/data para visibilidad en exploradores
+      val extDir = context.getExternalFilesDir(null)
+      if (extDir != null) {
+        try {
+          val extCustom = File(extDir, "custom_opcodes.json")
+          extCustom.writeText(jsonString, Charsets.UTF_8)
+        } catch (_: Exception) {}
+      }
 
       // Recargar en memoria
       val loaded = loadCustomFromStorage(context)

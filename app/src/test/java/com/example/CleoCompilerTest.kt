@@ -147,4 +147,47 @@ class CleoCompilerTest {
     val result = CleoCompiler.compile(script)
     assertTrue("Debe compilar con éxito usando el opcode personalizado", result is CompilationResult.Success)
   }
+
+  @Test
+  fun `long cleo script compiles without errors`() {
+    val script = """
+      // ========================================================
+      // COMPILER STUDIO - SCRIPT CLEO COMPLETO (.CS)
+      // MOD: SUPER CJ - SALUD INFINITA, ARMAS Y VEHICULOS
+      // ========================================================
+
+      03A4: name_thread 'SUPERCJ'
+      0001: wait 1000 ms
+      0ACA: show_text_box "Compiler Studio: Super CJ Activado"
+
+      0109: player ${'$'}PLAYER_CHAR add_money 999999
+      01B6: set_weather 1
+      014D: set_actor ${'$'}PLAYER_ACTOR armour 100
+      01B2: give_actor ${'$'}PLAYER_ACTOR weapon 24 ammo 250
+      05E2: give_actor ${'$'}PLAYER_ACTOR weapon 31 ammo 500
+
+      :MAIN_LOOP
+      0001: wait 250 ms
+      014D: set_actor ${'$'}PLAYER_ACTOR armour 100
+      02AB: set_actor ${'$'}PLAYER_ACTOR immunities 1 1 1 1 1
+      0050: gosub @SUB_REPAIR_VEHICLE
+      0002: jump @MAIN_LOOP
+
+      :SUB_REPAIR_VEHICLE
+      0001: wait 50 ms
+      0229: set_car ${'$'}CAR health 1000
+      0051: return
+
+      :CLEO_TERMINATE
+      0001: wait 500 ms
+      0ACA: show_text_box "Mod Desactivado"
+      004E: end_thread
+    """.trimIndent()
+
+    val result = CleoCompiler.compile(script)
+    assertTrue("Debe compilar exitosamente: $result", result is CompilationResult.Success)
+    val success = result as CompilationResult.Success
+    assertTrue("Debe generar bytecode válido", success.bytecode.isNotEmpty())
+    assertTrue("Debe compilar al menos 15 opcodes", success.opcodesCompiled >= 15)
+  }
 }
