@@ -291,8 +291,10 @@ fun HomeScreen() {
           }
 
           AppScreenState.FORMAT_SELECTION -> {
+            val defaultName = verifiedResult?.scriptName ?: CleoCompiler.inferScriptName(codeState.text, "csa")
             FormatSelectionScreen(
-              onFormatSelected = { format ->
+              initialScriptName = defaultName,
+              onFormatSelected = { format, chosenName ->
                 coroutineScope.launch {
                   currentScreen = AppScreenState.COMPILING_ZIP
 
@@ -309,7 +311,8 @@ fun HomeScreen() {
                     context = context,
                     bytecode = successData.bytecode,
                     sourceCode = codeState.text,
-                    formatExtension = format.extension
+                    formatExtension = format.extension,
+                    customScriptName = chosenName
                   )
 
                   generatedZip = zipPackage

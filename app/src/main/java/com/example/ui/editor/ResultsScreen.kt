@@ -2,6 +2,7 @@ package com.example.ui.editor
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -96,6 +97,47 @@ fun ResultsScreen(
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.Center
     ) {
+      // Tarjeta informativa del archivo generado con su nombre inteligente
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .background(Color(0xFFF8FAFC), shape = RoundedCornerShape(12.dp))
+          .border(1.dp, Color(0xFFE2E8F0), shape = RoundedCornerShape(12.dp))
+          .padding(14.dp)
+          .testTag("result_script_info_card"),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Box(
+          modifier = Modifier
+            .size(42.dp)
+            .background(Color(0xFFE0F2FE), shape = RoundedCornerShape(8.dp)),
+          contentAlignment = Alignment.Center
+        ) {
+          Text(
+            text = zipResult.scriptFormat,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF0284C7)
+          )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = zipResult.scriptEntryName,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF1E293B)
+          )
+          Text(
+            text = "${zipResult.sizeBytes} bytes • ${zipResult.fileName}",
+            fontSize = 11.sp,
+            color = Color(0xFF64748B)
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(20.dp))
+
       // Botón principal: Descargar / Mover a Download
       Button(
         onClick = {

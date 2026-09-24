@@ -384,13 +384,148 @@ object CleoCompiler {
 
     val compiledBytes = outputStream.toByteArray()
     val hexDump = compiledBytes.joinToString(" ") { "%02X".format(it) }
+    val detectedScriptName = inferScriptName(sourceCode, "csa")
 
     return CompilationResult.Success(
       bytecode = compiledBytes,
       opcodesCompiled = opcodesCount,
       totalLines = lines.size,
-      hexDump = hexDump
+      hexDump = hexDump,
+      scriptName = detectedScriptName
     )
+  }
+
+  /**
+   * Deduce de manera inteligente un nombre significativo para el script:
+   * 1. Directivas explícitas como {$NAME nombre} o {$SCRIPT_NAME nombre} o comentarios // name: nombre.
+   * 2. Opcodes de nombre de hilo como 03A4: name_thread 'NOMBRE'.
+   * 3. Comentarios de cabecera con palabras clave válidas.
+   * 4. Contenido semántico analizado (dinero, controles táctiles, menú CLEO, vehículos, armas, etc.).
+   * 5. Fallback coherente según el formato (.csa o .csi).
+   */
+  fun inferScriptName(sourceCode: String, targetExtension: String = "csa"): String {
+    val cleanExt = targetExtension.trim().removePrefix(".").lowercase().ifEmpty { "csa" }
+    val lines = sourceCode.lines()
+
+    // 1. Directivas explícitas {$NAME mi_script} o comentarios estructurados // name: mi_script
+    for (line in lines) {
+      val t = line.trim()
+      val directiveMatch = Regex("\\{\\$(?:NAME|SCRIPT_NAME|FILE_NAME)\\s+([A-Za-z0-9_\\-]+)\\}", RegexOption.IGNORE_CASE).find(t)
+      if (directiveMatch != null) {
+        val name = sanitizeFileName(directiveMatch.groupValues[1])
+        if (name.isNotEmpty()) return "$name.$cleanExt"
+      }
+
+      val commentNameMatch = Regex("^(?://|;|#)\\s*(?:name|script|mod|title)\\s*[:=]\\s*([A-Za-z0-9_\\-]+)", RegexOption.IGNORE_CASE).find(t)
+      if (commentNameMatch != null) {
+        val name = sanitizeFileName(commentNameMatch.groupValues[1])
+        if (name.isNotEmpty()) return "$name.$cleanExt"
+      }
+    }
+
+    // 2. Opcode 03A4: name_thread 'NOMBRE'
+    for (line in lines) {
+      val t = line.trim()
+      val threadMatch = Regex("(?:03A4\\s*:\\s*name_thread|name_thread)\\s*['\"]([A-Za-z0-9_\\-]+)['\"]", RegexOption.IGNORE_CASE).find(t)
+      if (threadMatch != null) {
+        val raw = threadMatch.groupValues[1].trim()
+        val lower = raw.lowercase()
+        if (lower !in listOf("main", "thread", "script", "noname") && raw.isNotEmpty()) {
+          val sanitized = sanitizeFileName(raw)
+          if (sanitized.isNotEmpty()) return "$sanitized.$cleanExt"
+        }
+      }
+    }
+
+    // 3. Primer comentario relevante corto que actúe como título
+    for (line in lines) {
+      val t = line.trim()
+      if (t.startsWith("//") || t.startsWith(";")) {
+        val cleaned = t.replace(Regex("^[//;\\s*#]+"), "").trim()
+        val words = cleaned.split(Regex("[\\s\\-_]+")).filter { it.isNotEmpty() }
+        if (words.isNotEmpty() && words.size <= 4 && words.all { it.matches(Regex("^[A-Za-z0-9]+$")) }) {
+          val candidate = words.joinToString("_").lowercase()
+          if (candidate.length in 3..24 && candidate !in listOf("cleo_script", "script", "code", "untitled")) {
+            val sanitized = sanitizeFileName(candidate)
+            if (sanitized.isNotEmpty()) return "$sanitized.$cleanExt"
+          }
+        }
+      }
+    }
+
+    // 4. Inferencia semántica según lo que lee en las instrucciones del código
+    val codeLower = sourceCode.lowercase()
+
+    // Voz, diálogos y efectos de audio (0056, play_sound, etc.)
+    if (codeLower.contains("0056") || codeLower.contains("make_actor_say") || codeLower.contains("say_phrase") ||
+      codeLower.contains("play_sound") || codeLower.contains("018c") || codeLower.contains("play_music") ||
+      codeLower.contains("audio_stream") || codeLower.contains("voice")
+    ) {
+      return if (cleanExt == "csi") "voice_dialogue.csi" else "voice_mod.csa"
+    }
+
+    // Gestos y controles táctiles de Android
+    if (codeLower.contains("0de0") || codeLower.contains("0de1") || codeLower.contains("0de2") ||
+      codeLower.contains("0de3") || codeLower.contains("0de4") || codeLower.contains("0de5") ||
+      codeLower.contains("touch") || codeLower.contains("gesture") || codeLower.contains("swipe")
+    ) {
+      return if (cleanExt == "csi") "touch_actions.csi" else "touch_controls.csa"
+    }
+
+    // Menús CLEO Android
+    if (codeLower.contains("0dd8") || codeLower.contains("0dd9") || codeLower.contains("0dda") ||
+      codeLower.contains("0ddb") || codeLower.contains("0ddc") || codeLower.contains("0ddd") ||
+      codeLower.contains("cleo_menu") || codeLower.contains("081e") || codeLower.contains("create_menu")
+    ) {
+      return if (cleanExt == "csi") "cleo_menu.csi" else "custom_menu.csa"
+    }
+
+    // Dinero y economía
+    if (codeLower.contains("0109") || codeLower.contains("010a") || codeLower.contains("010b") ||
+      codeLower.contains("010e") || codeLower.contains("player_add_money") || codeLower.contains("player_set_money") ||
+      codeLower.contains("add_money") || codeLower.contains("cash") || codeLower.contains("032b")
+    ) {
+      return if (cleanExt == "csi") "money_menu.csi" else "money_mod.csa"
+    }
+
+    // Vehículos / Car spawner
+    if (codeLower.contains("00a5") || codeLower.contains("create_car") || codeLower.contains("infernus") ||
+      codeLower.contains("turismo") || codeLower.contains("bullet") || codeLower.contains("car_spawner")
+    ) {
+      return if (cleanExt == "csi") "car_spawner.csi" else "auto_vehicle.csa"
+    }
+
+    // Armas
+    if (codeLower.contains("give_actor_weapon") || codeLower.contains("01b2") || codeLower.contains("05e2") ||
+      codeLower.contains("minigun") || codeLower.contains("rocket")
+    ) {
+      return if (cleanExt == "csi") "weapons_menu.csi" else "weapons_mod.csa"
+    }
+
+    // Teletransporte
+    if (codeLower.contains("set_actor_coordinates") || codeLower.contains("00a1") || codeLower.contains("teleport")) {
+      return if (cleanExt == "csi") "teleport_menu.csi" else "teleport.csa"
+    }
+
+    // Modo Dios / Inmunidades
+    if (codeLower.contains("02ab") || codeLower.contains("set_actor_immunities") || codeLower.contains("godmode")) {
+      return "godmode.$cleanExt"
+    }
+
+    // Animaciones
+    if (codeLower.contains("0812") || codeLower.contains("apply_animation") || codeLower.contains("walk_style")) {
+      return if (cleanExt == "csi") "anim_trigger.csi" else "anim_mod.csa"
+    }
+
+    // 5. Fallback coherente por formato
+    return if (cleanExt == "csi") "menu_script.csi" else "cleo_mod.csa"
+  }
+
+  private fun sanitizeFileName(input: String): String {
+    return input.trim()
+      .replace(Regex("[^A-Za-z0-9_\\-]"), "_")
+      .trim('_')
+      .lowercase()
   }
 
   private fun getParamByteSize(param: ScriptParam): Int = when (param) {

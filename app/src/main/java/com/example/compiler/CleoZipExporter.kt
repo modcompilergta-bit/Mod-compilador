@@ -26,21 +26,32 @@ data class GeneratedZipResult(
 object CleoZipExporter {
 
   /**
-   * Crea un archivo ZIP y un archivo binario directo (.csa/.cs) en el caché.
+   * Crea un archivo ZIP y un archivo binario directo (.csa/.csi) en el caché.
+   * Asigna un nombre de script razonable y personalizado deducido o ingresado,
+   * evitando colisiones y reemplazos no deseados en la carpeta de juego /data.
    */
   fun createZipPackage(
     context: Context,
     bytecode: ByteArray,
     sourceCode: String,
-    formatExtension: String // "csa" o "cs"
+    formatExtension: String, // "csa" o "csi"
+    customScriptName: String? = null
   ): GeneratedZipResult {
     val cleanExt = formatExtension.removePrefix(".").lowercase()
-    val zipName = "script_$cleanExt.zip"
-    val scriptFileName = "script.$cleanExt"
+    
+    // Resolver nombre del script inteligente o especificado
+    val effectiveBaseName = if (!customScriptName.isNullOrBlank()) {
+      customScriptName.removeSuffix(".$cleanExt").removeSuffix(".csa").removeSuffix(".csi").trim()
+    } else {
+      CleoCompiler.inferScriptName(sourceCode, cleanExt).removeSuffix(".$cleanExt")
+    }
+
+    val scriptFileName = "$effectiveBaseName.$cleanExt"
+    val zipName = "${effectiveBaseName}_$cleanExt.zip"
 
     val cacheDir = context.cacheDir
 
-    // Archivo binario directo del script (.csa o .cs)
+    // Archivo binario directo del script (.csa o .csi)
     val directScriptFile = File(cacheDir, scriptFileName)
     directScriptFile.writeBytes(bytecode)
 
@@ -51,14 +62,14 @@ object CleoZipExporter {
     }
 
     ZipOutputStream(FileOutputStream(zipFile)).use { zipOut ->
-      // 1. Script binario compilado (.csa o .cs)
+      // 1. Script binario compilado (.csa o .csi con nombre coherente)
       val scriptEntry = ZipEntry(scriptFileName)
       zipOut.putNextEntry(scriptEntry)
       zipOut.write(bytecode)
       zipOut.closeEntry()
 
       // 2. Archivo de código fuente original (.txt)
-      val sourceEntry = ZipEntry("source.txt")
+      val sourceEntry = ZipEntry("${effectiveBaseName}_source.txt")
       zipOut.putNextEntry(sourceEntry)
       zipOut.write(sourceCode.toByteArray(Charsets.UTF_8))
       zipOut.closeEntry()

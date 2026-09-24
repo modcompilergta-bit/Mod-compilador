@@ -29,6 +29,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.i18n.LocalAppStrings
 
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+
 enum class CleoScriptFormat(val extension: String, val label: String, val subtitle: String) {
   CSA("csa", "CLEO SA (.csa)", "Script autónomo para GTA San Andreas Android"),
   CSI("csi", "CLEO Invoked (.csi)", "Script de invocación táctil / animación CLEO Android");
@@ -41,10 +52,13 @@ enum class CleoScriptFormat(val extension: String, val label: String, val subtit
 
 @Composable
 fun FormatSelectionScreen(
-  onFormatSelected: (CleoScriptFormat) -> Unit,
+  initialScriptName: String = "",
+  onFormatSelected: (CleoScriptFormat, String) -> Unit,
   onBack: () -> Unit
 ) {
   val strings = LocalAppStrings.current
+  val focusManager = LocalFocusManager.current
+  var scriptNameInput by remember { mutableStateOf(initialScriptName.substringBeforeLast(".")) }
 
   Box(
     modifier = Modifier
@@ -83,8 +97,30 @@ fun FormatSelectionScreen(
         fontSize = 15.sp,
         fontWeight = FontWeight.SemiBold,
         color = Color(0xFF1E293B),
-        modifier = Modifier.padding(bottom = 24.dp)
+        modifier = Modifier.padding(bottom = 16.dp)
       )
+
+      // Campo para nombre del script (deducido automáticamente de lo que lee o editable por el usuario)
+      OutlinedTextField(
+        value = scriptNameInput,
+        onValueChange = { scriptNameInput = it.replace(Regex("[^A-Za-z0-9_\\-]"), "") },
+        label = { Text(strings.scriptNameLabel, fontSize = 12.sp) },
+        placeholder = { Text(strings.scriptNameHint, fontSize = 12.sp, color = Color(0xFF94A3B8)) },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+          focusedBorderColor = Color(0xFF1976D2),
+          unfocusedBorderColor = Color(0xFFCBD5E1),
+          focusedLabelColor = Color(0xFF1976D2)
+        ),
+        modifier = Modifier
+          .fillMaxWidth()
+          .testTag("script_name_input")
+      )
+
+      Spacer(modifier = Modifier.height(20.dp))
 
       // Opción 1: .csa
       FormatOptionCard(
@@ -92,7 +128,10 @@ fun FormatSelectionScreen(
         description = strings.csaTitle,
         subDescription = strings.csaDesc,
         testTag = "format_option_csa",
-        onClick = { onFormatSelected(CleoScriptFormat.CSA) }
+        onClick = {
+          val finalName = scriptNameInput.trim().ifEmpty { initialScriptName.substringBeforeLast(".") }
+          onFormatSelected(CleoScriptFormat.CSA, finalName)
+        }
       )
 
       Spacer(modifier = Modifier.height(16.dp))
@@ -103,7 +142,10 @@ fun FormatSelectionScreen(
         description = strings.csiTitle,
         subDescription = strings.csiDesc,
         testTag = "format_option_csi",
-        onClick = { onFormatSelected(CleoScriptFormat.CSI) }
+        onClick = {
+          val finalName = scriptNameInput.trim().ifEmpty { initialScriptName.substringBeforeLast(".") }
+          onFormatSelected(CleoScriptFormat.CSI, finalName)
+        }
       )
     }
   }

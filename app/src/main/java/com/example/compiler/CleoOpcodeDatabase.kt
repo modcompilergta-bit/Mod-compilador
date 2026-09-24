@@ -551,7 +551,49 @@ object CleoOpcodeDatabase {
       OpcodeDef(0x0ACA, "0ACA", "show_text_box", "CLEO: Muestra una caja de texto de ayuda", 1, 1, listOf(ParamType.STRING_LONG), "0ACA: show_text_box \"Script activado\""),
       OpcodeDef(0x0ACB, "0ACB", "show_styled_text", "CLEO: Muestra texto estilizado personalizado", 3, 3, listOf(ParamType.STRING_LONG, ParamType.INTEGER, ParamType.INTEGER), "0ACB: show_styled_text \"MOD ON\" 2000 1"),
       OpcodeDef(0x0DD2, "0DD2", "read_memory_float", "CLEO: Lee un número flotante de la memoria", 4, 4, emptyList(), "0DD2: read_memory 0xBAA420 size 4 vp 0 to 0@"),
-      OpcodeDef(0x0DD4, "0DD4", "read_memory_int", "CLEO: Lee un entero de una dirección de memoria", 4, 4, emptyList(), "0DD4: read_memory 0xBAA420 size 4 vp 0 to 0@")
+      OpcodeDef(0x0DD4, "0DD4", "read_memory_int", "CLEO: Lee un entero de una dirección de memoria", 4, 4, emptyList(), "0DD4: read_memory 0xBAA420 size 4 vp 0 to 0@"),
+      // Controles y gestos táctiles Android
+      OpcodeDef(0x00E1, "00E1", "is_button_pressed", "Comprueba si un botón táctil o pad está presionado", 2, 2, emptyList(), "00E1: is_button_pressed 0 15", "Controles y Táctil"),
+      OpcodeDef(0x01B4, "01B4", "set_player_control", "Habilita o deshabilita los controles del jugador", 2, 2, emptyList(), "01B4: set_player \$PLAYER_CHAR can_move 0", "Controles y Táctil"),
+      OpcodeDef(0x0DE0, "0DE0", "is_touch_point_pressed", "CLEO Android: Comprueba si un punto o zona táctil está presionado (zonas 1 a 9)", 1, 1, listOf(ParamType.INTEGER), "0DE0: is_touch_point_pressed 5", "Controles y Táctil"),
+      OpcodeDef(0x0DE1, "0DE1", "get_touch_point_state", "CLEO Android: Obtiene el estado de presión de una zona táctil", 2, 2, emptyList(), "0DE1: get_touch_point_state 1 0@", "Controles y Táctil"),
+      OpcodeDef(0x0DE2, "0DE2", "get_touch_point_pos", "CLEO Android: Obtiene las coordenadas X e Y en píxeles del toque", 3, 3, emptyList(), "0DE2: get_touch_point_pos 1 0@ 1@", "Controles y Táctil"),
+      OpcodeDef(0x0DE3, "0DE3", "get_touch_drag_diff", "CLEO Android: Obtiene la distancia y vector de arrastre en X e Y", 3, 3, emptyList(), "0DE3: get_touch_drag_diff 1 0@ 1@", "Controles y Táctil"),
+      OpcodeDef(0x0DE4, "0DE4", "get_touch_gesture", "CLEO Android: Detecta gestos táctiles (tap, doble tap, swipes)", 1, 1, emptyList(), "0DE4: get_touch_gesture 0@", "Controles y Táctil"),
+      OpcodeDef(0x0DE5, "0DE5", "is_touch_screen_swiped", "CLEO Android: Verifica si se realizó un deslizamiento (swipe)", 2, 2, emptyList(), "0DE5: is_touch_screen_swiped 4 6", "Controles y Táctil"),
+      // Menú CLEO Android & GTA SA
+      OpcodeDef(0x0DD8, "0DD8", "is_cleo_android_menu_active", "CLEO Android: Comprueba si el menú CLEO táctil está abierto", 0, 0, emptyList(), "0DD8: is_cleo_android_menu_active", "Menús CLEO"),
+      OpcodeDef(0x0DD9, "0DD9", "show_cleo_android_menu", "CLEO Android: Abre (1) o cierra (0) el menú CLEO táctil", 1, 1, listOf(ParamType.INTEGER), "0DD9: show_cleo_android_menu 1", "Menús CLEO"),
+      OpcodeDef(0x0DDA, "0DDA", "set_cleo_menu_title", "CLEO Android: Asigna el título del menú táctil", 1, 1, listOf(ParamType.STRING_LONG), "0DDA: set_cleo_menu_title \"MENU MODS\"", "Menús CLEO"),
+      OpcodeDef(0x0DDB, "0DDB", "add_cleo_menu_item", "CLEO Android: Añade un elemento al menú táctil", 2, 2, listOf(ParamType.INTEGER, ParamType.STRING_LONG), "0DDB: add_cleo_menu_item 1 \"Spawn Auto\"", "Menús CLEO"),
+      OpcodeDef(0x0DDC, "0DDC", "get_cleo_menu_item_selected", "CLEO Android: Obtiene la opción seleccionada en el menú", 1, 1, emptyList(), "0DDC: get_cleo_menu_item_selected 0@", "Menús CLEO"),
+      OpcodeDef(0x0DDD, "0DDD", "close_cleo_android_menu", "CLEO Android: Cierra el menú táctil", 0, 0, emptyList(), "0DDD: close_cleo_android_menu", "Menús CLEO"),
+      OpcodeDef(0x081E, "081E", "create_menu", "Crea un menú emergente con columnas", 7, 7, emptyList(), "081E: create_menu 'TITLE' 20.0 50.0 150.0 2 1 1 to \$MENU", "Menús CLEO"),
+      // Dinero y finanzas
+      OpcodeDef(0x0109, "0109", "player_add_money", "Suma dinero a la cuenta del jugador", 2, 2, emptyList(), "0109: player \$PLAYER_CHAR add_money 50000", "Dinero y Economía"),
+      OpcodeDef(0x010A, "010A", "player_remove_money", "Resta dinero de la cuenta del jugador", 2, 2, emptyList(), "010A: player \$PLAYER_CHAR remove_money 1500", "Dinero y Economía"),
+      OpcodeDef(0x010B, "010B", "player_set_money", "Asigna el dinero exacto del jugador (ej. 99999999)", 2, 2, emptyList(), "010B: player \$PLAYER_CHAR set_money 99999999", "Dinero y Economía"),
+      OpcodeDef(0x010E, "010E", "player_get_money", "Obtiene la cantidad total de dinero del jugador", 2, 2, emptyList(), "010E: player \$PLAYER_CHAR get_money 0@", "Dinero y Economía"),
+      OpcodeDef(0x0150, "0150", "show_money", "Muestra u oculta el dinero en pantalla", 1, 1, emptyList(), "0150: show_money 1", "Dinero y Economía"),
+      OpcodeDef(0x0151, "0151", "set_char_money", "Asigna dinero a un peatón o actor", 2, 2, emptyList(), "0151: set_char \$ACTOR money 2000", "Dinero y Economía"),
+      OpcodeDef(0x0152, "0152", "get_char_money", "Obtiene el dinero de un peatón o actor", 2, 2, emptyList(), "0152: get_char \$ACTOR money 0@", "Dinero y Economía"),
+      OpcodeDef(0x032B, "032B", "create_money_pickup", "Genera un pickup de dinero recogible", 5, 5, emptyList(), "032B: create_money_pickup 0.0 0.0 5.0 amount 10000 to \$CASH", "Dinero y Economía"),
+      OpcodeDef(0x06FD, "06FD", "play_cash_register_sound", "Reproduce el sonido clásico de caja registradora", 0, 0, emptyList(), "06FD: play_cash_register_sound", "Dinero y Economía"),
+      // Audio, Voz y Sonido (0056 y afines)
+      OpcodeDef(0x0056, "0056", "make_actor_say", "Hace que el actor o CJ reproduzca una frase de voz o diálogo del juego", 2, 2, emptyList(), "0056: make_actor_say \$PLAYER_ACTOR phrase 1", "Audio y Voz"),
+      OpcodeDef(0x0097, "0097", "make_actor_say_ambient", "Hace que el actor diga una frase ambiental o de contexto", 2, 2, emptyList(), "0097: make_actor_say_ambient \$ACTOR 5", "Audio y Voz"),
+      OpcodeDef(0x018C, "018C", "play_sound", "Reproduce un efecto de sonido del juego en coordenadas 3D", 4, 4, emptyList(), "018C: play_sound 1052 at 0.0 0.0 0.0", "Audio y Voz"),
+      OpcodeDef(0x018D, "018D", "stop_sound", "Detiene la reproducción de un sonido continuo activo", 1, 1, emptyList(), "018D: stop_sound \$SOUND_ID", "Audio y Voz"),
+      OpcodeDef(0x0394, "0394", "play_music", "Inicia la reproducción de una pista de música o tema de misión", 1, 1, emptyList(), "0394: play_music 1", "Audio y Voz"),
+      OpcodeDef(0x0395, "0395", "stop_music", "Detiene la reproducción de la música de fondo del juego", 0, 0, emptyList(), "0395: stop_music", "Audio y Voz"),
+      OpcodeDef(0x0775, "0775", "set_radio_station", "Sintoniza una estación de radio específica en el vehículo", 1, 1, emptyList(), "0775: set_radio_station 4", "Audio y Voz"),
+      // Tareas de IA y Peds
+      OpcodeDef(0x0606, "0606", "task_stand_still", "Obliga al actor a quedarse completamente inmóvil por un tiempo", 2, 2, emptyList(), "0606: task_stand_still \$ACTOR 5000 ms", "Tareas de Peds"),
+      OpcodeDef(0x0608, "0608", "task_jump", "Hace que el personaje o actor realice un salto", 2, 2, emptyList(), "0608: task_jump \$ACTOR 1", "Tareas de Peds"),
+      OpcodeDef(0x0611, "0611", "task_hands_up", "Obliga al actor a levantar las manos en señal de rendición", 2, 2, emptyList(), "0611: task_hands_up \$ACTOR 5000 ms", "Tareas de Peds"),
+      OpcodeDef(0x0643, "0643", "task_leave_vehicle", "Ordena al personaje salir del vehículo en el que se encuentra", 1, 1, emptyList(), "0643: task_leave_vehicle \$ACTOR", "Tareas de Peds"),
+      OpcodeDef(0x0672, "0672", "task_kill_char_on_foot", "Ordena al personaje atacar y eliminar a otro personaje a pie", 2, 2, emptyList(), "0672: task_kill_char_on_foot \$ACTOR \$TARGET", "Tareas de Peds"),
+      OpcodeDef(0x06E5, "06E5", "task_die", "Fuerza la muerte con animación inmediata del personaje", 1, 1, emptyList(), "06E5: task_die \$ACTOR", "Tareas de Peds")
     )
     defaultList.forEach { registerOfficial(it) }
   }
