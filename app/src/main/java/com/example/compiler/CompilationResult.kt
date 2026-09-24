@@ -31,7 +31,8 @@ sealed class CompilationResult {
     val opcodesCompiled: Int,
     val totalLines: Int,
     val hexDump: String,
-    val scriptName: String = "script.csa"
+    val scriptName: String = "script.csa",
+    val compilationTimeMs: Long = 0L
   ) : CompilationResult() {
     val sizeBytes: Int get() = bytecode.size
 

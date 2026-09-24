@@ -20,7 +20,10 @@ data class GeneratedZipResult(
   val sizeBytes: Long,
   val scriptFormat: String,
   val scriptEntryName: String,
-  val scriptFile: File? = null
+  val scriptFile: File? = null,
+  val hexDump: String = "",
+  val compilationTimeMs: Long = 0L,
+  val opcodesCount: Int = 0
 )
 
 object CleoZipExporter {
@@ -35,7 +38,10 @@ object CleoZipExporter {
     bytecode: ByteArray,
     sourceCode: String,
     formatExtension: String, // "csa" o "csi"
-    customScriptName: String? = null
+    customScriptName: String? = null,
+    hexDump: String = "",
+    compilationTimeMs: Long = 0L,
+    opcodesCount: Int = 0
   ): GeneratedZipResult {
     val cleanExt = formatExtension.removePrefix(".").lowercase()
     
@@ -81,7 +87,10 @@ object CleoZipExporter {
       sizeBytes = zipFile.length(),
       scriptFormat = cleanExt.uppercase(),
       scriptEntryName = scriptFileName,
-      scriptFile = directScriptFile
+      scriptFile = directScriptFile,
+      hexDump = hexDump,
+      compilationTimeMs = compilationTimeMs,
+      opcodesCount = opcodesCount
     )
   }
 
