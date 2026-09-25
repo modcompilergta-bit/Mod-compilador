@@ -65,8 +65,9 @@ import com.example.ui.editor.OpcodeListScreen
 import com.example.ui.editor.ResultsScreen
 import com.example.ui.menu.AppMenuScreen
 import com.example.ui.theme.MyApplicationTheme
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class AppScreenState {
   EDITOR,
@@ -140,7 +141,7 @@ fun HomeScreen() {
   var codeState by remember {
     mutableStateOf(
       TextFieldValue(
-        "// Script CLEO GTA San Andreas Android\n0000: NOP\n0001: wait 0 ms\n004E: end_thread"
+        "// Script CLEO GTA San Andreas Android\n0000: NOP\n0001: wait 0 ms\n0A93: end_custom_thread"
       )
     )
   }
@@ -229,15 +230,22 @@ fun HomeScreen() {
                   onClick = {
                     errorLine = null
                     errorResult = null
+                    currentScreen = AppScreenState.VERIFYING
+                    loadingStatus = strings.verifyingTitle
+                    loadingSubStatus = "Analizando instrucciones y etiquetas…"
 
-                    val check = CleoCompiler.compile(codeState.text)
-                    if (check is CompilationResult.Failure) {
-                      errorLine = check.error.line
-                      errorResult = check
-                      currentScreen = AppScreenState.EDITOR
-                    } else {
-                      verifiedResult = check as CompilationResult.Success
-                      currentScreen = AppScreenState.FORMAT_SELECTION
+                    coroutineScope.launch {
+                      val check = withContext(Dispatchers.Default) {
+                        CleoCompiler.compile(codeState.text)
+                      }
+                      if (check is CompilationResult.Failure) {
+                        errorLine = check.error.line
+                        errorResult = check
+                        currentScreen = AppScreenState.EDITOR
+                      } else {
+                        verifiedResult = check as CompilationResult.Success
+                        currentScreen = AppScreenState.FORMAT_SELECTION
+                      }
                     }
                   },
                   shape = RoundedCornerShape(24.dp),
@@ -277,19 +285,26 @@ fun HomeScreen() {
               initialScriptName = defaultName,
               onFormatSelected = { format, chosenName ->
                 val successData = verifiedResult ?: return@FormatSelectionScreen
-                val zipPackage = CleoZipExporter.createZipPackage(
-                  context = context,
-                  bytecode = successData.bytecode,
-                  sourceCode = codeState.text,
-                  formatExtension = format.extension,
-                  customScriptName = chosenName,
-                  hexDump = successData.hexDump,
-                  compilationTimeMs = successData.compilationTimeMs,
-                  opcodesCount = successData.opcodesCompiled
-                )
+                currentScreen = AppScreenState.COMPILING_ZIP
+                loadingStatus = strings.compilingPrefix
+                loadingSubStatus = strings.packagingZipSub
 
-                generatedZip = zipPackage
-                currentScreen = AppScreenState.RESULTS
+                coroutineScope.launch {
+                  val zipPackage = withContext(Dispatchers.IO) {
+                    CleoZipExporter.createZipPackage(
+                      context = context,
+                      bytecode = successData.bytecode,
+                      sourceCode = codeState.text,
+                      formatExtension = format.extension,
+                      customScriptName = chosenName,
+                      hexDump = successData.hexDump,
+                      compilationTimeMs = successData.compilationTimeMs,
+                      opcodesCount = successData.opcodesCompiled
+                    )
+                  }
+                  generatedZip = zipPackage
+                  currentScreen = AppScreenState.RESULTS
+                }
               },
               onBack = {
                 currentScreen = AppScreenState.EDITOR

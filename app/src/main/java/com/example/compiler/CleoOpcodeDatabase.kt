@@ -440,6 +440,7 @@ object CleoOpcodeDatabase {
       OpcodeDef(0x0043, "0043", "is_float_var_less_than_float", "Comprueba si float < número", 2, 2, emptyList(), "0043: 0@ < 10.0"),
       OpcodeDef(0x004D, "004D", "jump_if_false", "Salto condicional si la última condición fue falsa (jf)", 1, 1, listOf(ParamType.LABEL), "004D: jump_if_false @END"),
       OpcodeDef(0x004E, "004E", "end_thread", "Termina el hilo del script actual", 0, 0, emptyList(), "004E: end_thread"),
+      OpcodeDef(0x0A93, "0A93", "end_custom_thread", "Termina de forma segura un hilo CLEO", 0, 0, emptyList(), "0A93: end_custom_thread"),
       OpcodeDef(0x0050, "0050", "gosub", "Llama a una subrutina", 1, 1, listOf(ParamType.LABEL), "0050: gosub @SUB_ROUTINE"),
       OpcodeDef(0x0051, "0051", "return", "Regresa de una subrutina", 0, 0, emptyList(), "0051: return"),
       OpcodeDef(0x0054, "0054", "set_game_timer", "Establece temporizador interno", 1, 1, emptyList(), "0054: set_game_timer 1000"),
