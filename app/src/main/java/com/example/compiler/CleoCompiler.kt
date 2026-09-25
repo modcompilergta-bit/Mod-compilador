@@ -17,8 +17,9 @@ import java.nio.ByteOrder
  *   GlobalVar: 0x02, String8: 0x09, String16: 0x0F, StringVar: 0x0E).
  * - Protección contra cierres de juego (Crash Prevention):
  *   1. Mapeo fiel de variables globales del juego ($PLAYER_CHAR=8, $PLAYER_ACTOR=12, $PLAYER_GROUP=16).
- *   2. Adición automática de terminador 004E: end_thread para evitar desbordamiento de memoria.
- *   3. Strings delimitados con terminación nula para compatibilidad con las funciones C del motor.
+ *   2. Adición automática del terminador CLEO 0A93: end_custom_thread.
+ *   3. Strings variables codificados con la longitud SCM correcta (0E no es
+ *      una cadena terminada en NUL).
  * - Medición real de tiempo de compilación (nanosegundos a milisegundos reales, sin simulaciones ni retardos).
  */
 object CleoCompiler {
@@ -266,19 +267,28 @@ object CleoCompiler {
             rawLine = rawLine,
             type = CompilerErrorType.INVALID_OPCODE_FORMAT,
             message = "Instrucción no reconocida o formato de opcode inválido: '$firstToken'. Puedes usar formato hexadecimal (ej: '0001: wait 0 ms') o sintaxis Sanny Builder (ej: 'wait 0 ms', '0@ = 10', '\$VAR += 1', 'jump @LABEL', 'end_thread').",
-            suggestion = "Revisa la instrucción. Opcodes comunes: 0001 (wait), 004E (end_thread), 03A4 (name_thread), o expresiones como 0@ = 1."
+            suggestion = "Revisa la instrucción. Opcodes comunes: 0001 (wait), 0A93 (end_custom_thread), 03A4 (name_thread), o expresiones como 0@ = 1."
           )
         )
       }
 
-      var opcodeInt = opcodeHex.toInt(16)
+      var effectiveOpcodeHex = opcodeHex!!
+      var opcodeInt = effectiveOpcodeHex.toInt(16)
+
+      // 004E termina scripts del main.scm y provoca cierres al usarlo en CLEO.
+      // Se acepta como alias heredado para que los proyectos existentes no
+      // generen un archivo peligroso, pero siempre se emite el terminador CLEO.
+      if (opcodeInt == 0x004E) {
+        opcodeInt = 0x0A93
+        effectiveOpcodeHex = "0A93"
+      }
 
       // Si empieza con 8 (ej. 80DF), en SCM de GTA SA significa condición negada
       if (opcodeInt >= 0x8000) {
         isNegated = true
       }
 
-      val opcodeDef = CleoOpcodeDatabase.findByHex(opcodeHex)
+      val opcodeDef = CleoOpcodeDatabase.findByHex(effectiveOpcodeHex)
       if (opcodeDef == null) {
         return CompilationResult.Failure(
           CompilationError(
@@ -286,7 +296,7 @@ object CleoCompiler {
             rawLine = rawLine,
             type = CompilerErrorType.UNKNOWN_OPCODE,
             message = "Opcode no reconocido: '$opcodeHex'. Este opcode no existe en el catálogo de instrucciones de GTA San Andreas ni en CLEO Android.",
-            suggestion = "Verifica la sintaxis del opcode. Opcodes comunes: 0001 (wait), 004E (end_thread), 03A4 (name_thread)."
+            suggestion = "Verifica la sintaxis del opcode. Opcodes comunes: 0001 (wait), 0A93 (end_custom_thread), 03A4 (name_thread)."
           )
         )
       }
@@ -425,7 +435,7 @@ object CleoCompiler {
               is ScriptParam.ShortStringVal -> {
                 outputStream.write(0x09) // Tipo STRING_SHORT (8 bytes nulos-rellenados)
                 val nameBytes = ByteArray(8)
-                val ascii = param.text.take(7).toByteArray(Charsets.US_ASCII)
+                val ascii = param.text.take(8).toByteArray(Charsets.ISO_8859_1)
                 System.arraycopy(ascii, 0, nameBytes, 0, ascii.size)
                 outputStream.write(nameBytes)
               }
@@ -433,17 +443,19 @@ object CleoCompiler {
               is ScriptParam.MediumStringVal -> {
                 outputStream.write(0x0F) // Tipo STRING_16 (16 bytes nulos-rellenados para GTA SA)
                 val nameBytes = ByteArray(16)
-                val ascii = param.text.take(15).toByteArray(Charsets.US_ASCII)
+                val ascii = param.text.take(16).toByteArray(Charsets.ISO_8859_1)
                 System.arraycopy(ascii, 0, nameBytes, 0, ascii.size)
                 outputStream.write(nameBytes)
               }
 
               is ScriptParam.VarStringVal -> {
-                outputStream.write(0x0E) // Tipo STRING_VAR (longitud 1 byte + bytes ASCII + terminador nulo seguro)
-                val textBytes = param.text.toByteArray(Charsets.US_ASCII)
-                outputStream.write((textBytes.size + 1) and 0xFF)
+                // SCM 0x0E es una cadena inmediata de longitud variable:
+                // tipo + longitud + bytes. No lleva terminador NUL; agregarlo
+                // desplaza el siguiente parámetro y corrompe la instrucción.
+                outputStream.write(0x0E)
+                val textBytes = param.text.toByteArray(Charsets.ISO_8859_1)
+                outputStream.write(textBytes.size and 0xFF)
                 outputStream.write(textBytes)
-                outputStream.write(0x00) // Byte nulo de seguridad para strings en memoria
               }
             }
           }
@@ -459,11 +471,13 @@ object CleoCompiler {
     // =========================================================================
     if (lastInstructionOpcode != null &&
       lastInstructionOpcode != 0x0002 &&
-      lastInstructionOpcode != 0x004E &&
+      lastInstructionOpcode != 0x0A93 &&
       lastInstructionOpcode != 0x0051
     ) {
-      outputStream.write(0x4E)
-      outputStream.write(0x00)
+      // 004E es TERMINATE_THIS_SCRIPT y solo es válido para main.scm.
+      // Los scripts CLEO deben finalizar con 0A93.
+      outputStream.write(0x93)
+      outputStream.write(0x0A)
       opcodesCount++
     }
 
@@ -612,7 +626,7 @@ object CleoCompiler {
     is ScriptParam.FloatVal -> 1 + 4 // 0x06 + 4 bytes Float
     is ScriptParam.ShortStringVal -> 1 + 8 // 0x09 + 8 bytes
     is ScriptParam.MediumStringVal -> 1 + 16 // 0x0F + 16 bytes
-    is ScriptParam.VarStringVal -> 1 + 1 + param.text.toByteArray(Charsets.US_ASCII).size + 1 // 0x0E + len + bytes + null
+    is ScriptParam.VarStringVal -> 1 + 1 + param.text.toByteArray(Charsets.ISO_8859_1).size // 0x0E + len + bytes
   }
 
   private sealed class ParseResult {
@@ -632,7 +646,7 @@ object CleoCompiler {
 
     // Opcodes sin parámetros conocidos
     when (cleanOpcode) {
-      0x0000, 0x004E, 0x0051, 0x00BE, 0x00BF, 0x038B, 0x015F, 0x016A, 0x0249, 0x06FD, 0x0DD8, 0x0DDD, 0x0395 -> {
+      0x0000, 0x004E, 0x0051, 0x00BE, 0x00BF, 0x038B, 0x015F, 0x016A, 0x0249, 0x06FD, 0x0DD8, 0x0DDD, 0x0395, 0x0A93 -> {
         return ParseResult.Success(emptyList())
       }
 
@@ -857,14 +871,18 @@ object CleoCompiler {
         continue
       }
 
-      // 10. Si es un identificador alfanumérico que no coincide con nada, tratarlo como cadena corta o nombre
-      if (trimmed.length <= 7) {
-        params.add(ScriptParam.ShortStringVal(trimmed))
-      } else if (trimmed.length <= 15) {
-        params.add(ScriptParam.MediumStringVal(trimmed))
-      } else {
-        params.add(ScriptParam.VarStringVal(trimmed))
-      }
+      // No convertir silenciosamente un identificador desconocido en string:
+      // una palabra mal escrita produce bytecode con el tamaño equivocado y el
+      // juego termina leyendo los parámetros siguientes como basura.
+      return ParseResult.Error(
+        CompilationError(
+          line = lineNumber,
+          rawLine = rawLine,
+          type = CompilerErrorType.INVALID_PARAMETERS,
+          message = "Parámetro no reconocido: '$trimmed'.",
+          suggestion = "Usa un número, una variable (0@ o \$VAR), una etiqueta (@LABEL), un modelo conocido o una cadena entre comillas."
+        )
+      )
     }
 
     // Si hubo una asignación de variable a la izquierda (ej. $CAR = create_car ...),
@@ -879,13 +897,18 @@ object CleoCompiler {
       }
     }
 
-    if (params.size < opcodeDef.minParams) {
+    if (params.size < opcodeDef.minParams || params.size > opcodeDef.maxParams) {
+      val expectedText = if (opcodeDef.minParams == opcodeDef.maxParams) {
+        "${opcodeDef.minParams}"
+      } else {
+        "${opcodeDef.minParams}–${opcodeDef.maxParams}"
+      }
       return ParseResult.Error(
         CompilationError(
           line = lineNumber,
           rawLine = rawLine,
           type = CompilerErrorType.INVALID_PARAMETERS,
-          message = "El opcode ${opcodeDef.hexString}: (${opcodeDef.commandName}) requiere al menos ${opcodeDef.minParams} parámetro(s), pero se encontraron ${params.size}.",
+          message = "El opcode ${opcodeDef.hexString}: (${opcodeDef.commandName}) requiere ${expectedText} parámetro(s), pero se encontraron ${params.size}.",
           suggestion = "Sintaxis recomendada: ${opcodeDef.example}"
         )
       )
@@ -980,8 +1003,8 @@ object CleoCompiler {
       val args = cleanLine.split(Regex("\\s+"), limit = 2).getOrNull(1)?.trim() ?: ""
       return Pair("004D", args)
     }
-    if (low == "end_thread" || low == "terminate_this_custom_script" || low == "terminate_this_script") {
-      return Pair("004E", "")
+    if (low == "end_thread" || low == "end_custom_thread" || low == "terminate_this_custom_script" || low == "terminate_this_script") {
+      return Pair("0A93", "")
     }
     if (low.startsWith("gosub ")) {
       val args = cleanLine.split(Regex("\\s+"), limit = 2).getOrNull(1)?.trim() ?: ""
