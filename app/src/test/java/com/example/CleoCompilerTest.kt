@@ -39,8 +39,8 @@ class CleoCompilerTest {
     val success = result as CompilationResult.Success
     assertEquals(2, success.opcodesCompiled)
     assertTrue("Debe generar bytes", success.bytecode.isNotEmpty())
-    // 0001 wait 0 -> 01 00 04 00 (4 bytes), 004E -> 4E 00 (2 bytes) = 6 bytes
-    assertEquals("01 00 04 00 4E 00", success.hexDump)
+    // 0001 wait 0 -> 01 00 04 00 (4 bytes), 004E se traduce a 0A93 -> 93 0A
+    assertEquals("01 00 04 00 93 0A", success.hexDump)
   }
 
   @Test
@@ -230,8 +230,8 @@ class CleoCompilerTest {
     val result = CleoCompiler.compile(script)
     assertTrue("Debe compilar", result is CompilationResult.Success)
     val success = result as CompilationResult.Success
-    // 0001 wait 250: 01 00 05 FA 00 (250 cabe en Int16: 0x05 + 0x00FA) + terminador seguro 4E 00
-    assertTrue("Debe terminar en 4E 00 para proteger el juego", success.hexDump.endsWith("4E 00"))
+    // 0001 wait 250: 01 00 05 FA 00 (250 cabe en Int16) + terminador CLEO seguro 93 0A
+    assertTrue("Debe terminar en 93 0A para proteger el juego", success.hexDump.endsWith("93 0A"))
   }
 
   @Test
@@ -270,8 +270,8 @@ class CleoCompilerTest {
     assertTrue("Debe compilar sintaxis de Sanny Builder: $result", result is CompilationResult.Success)
     val success = result as CompilationResult.Success
     assertTrue("Debe contener al menos 12 instrucciones", success.opcodesCompiled >= 12)
-    // Comprobar que terminó en 4E 00
-    assertTrue("Debe contener end_thread", success.hexDump.endsWith("4E 00"))
+    // Comprobar que terminó en 0A93
+    assertTrue("Debe contener end_custom_thread", success.hexDump.endsWith("93 0A"))
   }
 
   @Test
